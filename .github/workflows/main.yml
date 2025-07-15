@@ -1,0 +1,48 @@
+name: Build ANGLE APK for Android
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout ANGLE source code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install depot_tools
+        run: |
+          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          echo "$(pwd)/depot_tools" >> $GITHUB_PATH
+
+      - name: Configure gclient and sync Android dependencies
+        run: |
+          gclient config --unmanaged .
+          echo "target_os = ['android']" >> .gclient
+          gclient sync -D --with_branch_heads --with_tags
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo ./build/install-build-deps.sh --no-prompt
+
+      - name: Generate GN build files
+        run: |
+          gn gen out/Android --args='
+          target_os = "android"
+          target_cpu = "arm64"
+          is_component_build = false
+          is_debug = false
+          '
+
+      - name: Build the ANGLE APK
+        run: |
+          autoninja -C out/Android angle_apks
+
+      - name: Upload ANGLE APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AngleLibraries-Android-arm64
+          path: out/Android/apks/AngleLibraries.apk
